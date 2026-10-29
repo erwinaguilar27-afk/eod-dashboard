@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recruiter EOD Dashboard</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b2430;--mut:#657080;--bd:#e2e6ec;--ac:#1f5fbf;--ok:#1a7f4b;--mid:#b7791f;--lo:#c0392b}
+@media(prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1a2029;--tx:#e8ecf1;--mut:#97a1af;--bd:#2c3542;--ac:#6ea8ff;--ok:#4cc38a;--mid:#e0b04a;--lo:#ef7b6e}}
+*{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif;background:var(--bg);color:var(--tx);padding:20px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:0 0 10px}.sub{color:var(--mut);margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:16px;margin-bottom:16px}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+input,select,button{font:inherit;padding:7px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--card);color:var(--tx)}
+button{background:var(--ac);color:#fff;border:0;cursor:pointer}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:760px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);vertical-align:top}
+th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;cursor:pointer;white-space:nowrap}
+td.n,th.n{text-align:right}.notes{max-width:340px;color:var(--mut)}
+.pill{padding:2px 8px;border-radius:10px;font-weight:600;color:#fff;white-space:nowrap}
+#msg{color:var(--mut)}
+</style></head><body>
+<h1>Recruiter EOD Dashboard</h1>
+<div class="sub">Upload daily EOD .json files — every file is saved and added to the tables below.</div>
+
+<div class="card"><div class="bar">
+<input type="file" id="files" accept=".json" multiple>
+<button id="up">Upload &amp; save</button><span id="msg"></span></div></div>
+
+<div class="card"><h2>Complete list</h2><div class="bar">
+<input id="q" placeholder="Search recruiter, req #, title…">
+<select id="mo"></select><select id="rec"></select></div>
+<div class="wrap"><table id="t1"></table></div></div>
+
+<div class="card"><h2>Summary per month</h2><div class="wrap"><table id="t2"></table></div></div>
+
+<script>
+// Column mapping — change here if a metric should come from a different EOD field.
+const SOURCED = v => v.sourced, GOAL = v => v.srcGoal, BANKED = v => v.ioActual;
+
+let rows = [], sort = {k:"date", d:-1};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct = (a,b) => b ? Math.round(a/b*100) : 0;
+const pill = p => `<span class="pill" style="background:var(${p>=100?"--ok":p>=75?"--mid":"--lo"})">${p}%</span>`;
+const monthName = m => new Date(m+"-01T00:00").toLocaleString("en",{month:"long",year:"numeric"});
+
+function flatten(data){
+  return data.flatMap(r => r.reqs.map(q => ({
+    date:r.date, month:r.date.slice(0,7), recruiter:r.name, req:q.num, title:q.title,
+    sourced:+SOURCED(q.v)||0, goal:+GOAL(q.v)||0, banked:+BANKED(q.v)||0, notes:r.notes||""
+  })));
+}
+async function load(){
+  try{ rows = flatten(await (await fetch("/api/eod")).json()); }catch(e){ $("msg").textContent="Could not load data."; }
+  const months=[...new Set(rows.map(r=>r.month))].sort().reverse(), recs=[...new Set(rows.map(r=>r.recruiter))].sort();
+  const mo=$("mo").value, rc=$("rec").value;
+  $("mo").innerHTML='<option value="">All months</option>'+months.map(m=>`<option value="${m}">${monthName(m)}</option>`).join("");
+  $("rec").innerHTML='<option value="">All recruiters</option>'+recs.map(r=>`<option>${esc(r)}</option>`).join("");
+  $("mo").value=mo; $("rec").value=rc; render();
+}
+function render(){
+  const q=$("q").value.toLowerCase(), mo=$("mo").value, rc=$("rec").value;
+  const f=rows.filter(r=>(!mo||r.month===mo)&&(!rc||r.recruiter===rc)&&(!q||[r.recruiter,r.req,r.title].join(" ").toLowerCase().includes(q)));
+  f.sort((a,b)=>(a[sort.k]>b[sort.k]?1:a[sort.k]<b[sort.k]?-1:0)*sort.d);
+  const h=[["date","Date"],["recruiter","Recruiter"],["req","Req #"],["title","Job Title"],["sourced","Sourced","n"],["goal","Goal","n"],["banked","Banked","n"],["comp","Completion","n"],["notes","Notes"]];
+  $("t1").innerHTML="<thead><tr>"+h.map(([k,l,c])=>`<th class="${c||""}" data-k="${k}">${l}</th>`).join("")+"</tr></thead><tbody>"+
+    (f.map(r=>`<tr><td>${r.date}</td><td>${esc(r.recruiter)}</td><td>${esc(r.req)}</td><td>${esc(r.title)}</td><td class="n">${r.sourced}</td><td class="n">${r.goal}</td><td class="n">${r.banked}</td><td class="n">${pill(pct(r.sourced,r.goal))}</td><td class="notes">${esc(r.notes)}</td></tr>`).join("")||'<tr><td colspan="9">No data yet — upload an EOD file.</td></tr>')+"</tbody>";
+  document.querySelectorAll("#t1 th").forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(k==="comp")return;sort={k,d:sort.k===k?-sort.d:1};render();});
+  const g={};
+  rows.forEach(r=>{const k=r.month+"|"+r.recruiter;(g[k]??={month:r.month,recruiter:r.recruiter,sourced:0,goal:0,banked:0,days:new Set()});
+    g[k].sourced+=r.sourced;g[k].goal+=r.goal;g[k].banked+=r.banked;g[k].days.add(r.date);});
+  const s=Object.values(g).sort((a,b)=>b.month.localeCompare(a.month)||a.recruiter.localeCompare(b.recruiter));
+  $("t2").innerHTML="<thead><tr><th>Month</th><th>Recruiter</th><th class='n'>Days Reported</th><th class='n'>Sourced</th><th class='n'>Goal</th><th class='n'>Banked</th><th class='n'>Completion</th></tr></thead><tbody>"+
+    (s.map(r=>`<tr><td>${monthName(r.month)}</td><td>${esc(r.recruiter)}</td><td class="n">${r.days.size}</td><td class="n">${r.sourced}</td><td class="n">${r.goal}</td><td class="n">${r.banked}</td><td class="n">${pill(pct(r.sourced,r.goal))}</td></tr>`).join("")||'<tr><td colspan="7">No data yet.</td></tr>')+"</tbody>";
+}
+$("up").onclick=async()=>{
+  const fs=[...$("files").files]; if(!fs.length){$("msg").textContent="Choose one or more .json files first.";return;}
+  try{
+    const all=[]; for(const f of fs) all.push(JSON.parse(await f.text()));
+    const res=await (await fetch("/api/eod",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(all)})).json();
+    $("msg").textContent=`Saved ${res.saved} EOD record(s).`; $("files").value=""; load();
+  }catch(e){$("msg").textContent="Upload failed — check the file is a valid EOD .json.";}
+};
+["q","mo","rec"].forEach(i=>$(i).oninput=render);
+load();
+</script></body></html>
