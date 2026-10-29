@@ -9,7 +9,7 @@ export default async (req) => {
     const out = [];
     for (const b of blobs) {
       const d = await store.get(b.key, { type: "json" });
-      if (d) out.push(d);
+      if (d) out.push({ ...d, _key: b.key });
     }
     return Response.json(out);
   }
@@ -27,13 +27,14 @@ export default async (req) => {
     return Response.json({ saved });
   }
   if (req.method === "DELETE") {
-    const { date, name, password } = await req.json();
+    const { key, password } = await req.json();
     const secret = process.env.DELETE_PASSWORD;
     if (!secret) return new Response("Delete password not set up", { status: 503 });
     if (password !== secret) return new Response("Wrong password", { status: 401 });
-    if (!date || !name) return new Response("Bad request", { status: 400 });
-    await store.delete(keyOf({ date, name }));
-    return Response.json({ deleted: true });
+    if (!key) return new Response("Bad request", { status: 400 });
+    await store.delete(key);
+    const stillThere = await store.get(key);
+    return Response.json({ deleted: !stillThere });
   }
   return new Response("Method not allowed", { status: 405 });
 };
