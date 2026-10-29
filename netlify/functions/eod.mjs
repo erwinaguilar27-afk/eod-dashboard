@@ -1,7 +1,9 @@
 import { getStore } from "@netlify/blobs";
 
+const keyOf = r => `${r.date}_${r.name}`.replace(/[^\w.-]+/g, "_");
+
 export default async (req) => {
-const store = getStore({ name: "eod-files", consistency: "strong" });
+  const store = getStore({ name: "eod-files", consistency: "strong" });
   if (req.method === "GET") {
     const { blobs } = await store.list();
     const out = [];
@@ -17,11 +19,18 @@ const store = getStore({ name: "eod-files", consistency: "strong" });
     let saved = 0;
     for (const r of items) {
       if (!r || !r.date || !r.name || !Array.isArray(r.reqs)) continue;
-      const key = `${r.date}_${r.name}`.replace(/[^\w.-]+/g, "_");
+      // one record per recruiter per day; re-uploading the same day overwrites it
+      const key = keyOf(r);
       await store.setJSON(key, r);
       saved++;
     }
     return Response.json({ saved });
+  }
+  if (req.method === "DELETE") {
+    const { date, name } = await req.json();
+    if (!date || !name) return new Response("Bad request", { status: 400 });
+    await store.delete(keyOf({ date, name }));
+    return Response.json({ deleted: true });
   }
   return new Response("Method not allowed", { status: 405 });
 };
