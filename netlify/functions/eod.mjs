@@ -27,7 +27,10 @@ export default async (req) => {
     return Response.json({ saved });
   }
   if (req.method === "DELETE") {
-    const { date, name } = await req.json();
+    const { date, name, password } = await req.json();
+    const secret = process.env.DELETE_PASSWORD;
+    if (!secret) return new Response("Delete password not set up", { status: 503 });
+    if (password !== secret) return new Response("Wrong password", { status: 401 });
     if (!date || !name) return new Response("Bad request", { status: 400 });
     await store.delete(keyOf({ date, name }));
     return Response.json({ deleted: true });
