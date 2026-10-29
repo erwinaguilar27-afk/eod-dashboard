@@ -1,7 +1,7 @@
 import { getStore } from "@netlify/blobs";
 
 export default async (req) => {
-  const store = getStore("eod-files");
+const store = getStore({ name: "eod-files", consistency: "strong" });
   if (req.method === "GET") {
     const { blobs } = await store.list();
     const out = [];
