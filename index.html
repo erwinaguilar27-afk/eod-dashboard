@@ -50,7 +50,7 @@ function flatten(data){
   })));
 }
 async function load(){
-  try{ records = await (await fetch("/api/eod")).json(); rows = flatten(records); }catch(e){ $("msg").textContent="Could not load data."; }
+  try{ records = await (await fetch("/api/eod?t="+Date.now(),{cache:"no-store"})).json(); rows = flatten(records); }catch(e){ $("msg").textContent="Could not load data."; }
   const months=[...new Set(rows.map(r=>r.month))].sort().reverse(), recs=[...new Set(rows.map(r=>r.recruiter))].sort();
   const mo=$("mo").value, rc=$("rec").value;
   $("mo").innerHTML='<option value="">All months</option>'+months.map(m=>`<option value="${m}">${monthName(m)}</option>`).join("");
@@ -73,7 +73,7 @@ function render(){
     (s.map(r=>`<tr><td>${monthName(r.month)}</td><td>${esc(r.recruiter)}</td><td class="n">${r.days.size}</td><td class="n">${r.sourced}</td><td class="n">${r.goal}</td><td class="n">${r.banked}</td><td class="n">${pill(pct(r.sourced,r.goal))}</td></tr>`).join("")||'<tr><td colspan="7">No data yet.</td></tr>')+"</tbody>";
   const rs=[...records].sort((a,b)=>b.date.localeCompare(a.date)||a.name.localeCompare(b.name));
   $("t3").innerHTML="<thead><tr><th>Date</th><th>Recruiter</th><th class='n'>Reqs</th><th></th></tr></thead><tbody>"+
-    (rs.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.name)}</td><td class="n">${r.reqs.length}</td><td class="n"><button class="del" data-d="${esc(r.date)}" data-n="${esc(r.name)}">Delete</button></td></tr>`).join("")||'<tr><td colspan="4">No files yet.</td></tr>')+"</tbody>";
+    (rs.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.name)}</td><td class="n">${r.reqs.length}</td><td class="n"><button class="del" data-k="${esc(r._key)}" data-d="${esc(r.date)}" data-n="${esc(r.name)}">Delete</button></td></tr>`).join("")||'<tr><td colspan="4">No files yet.</td></tr>')+"</tbody>";
 }
 $("up").onclick=async()=>{
   const fs=[...$("files").files]; if(!fs.length){$("msg").textContent="Choose one or more .json files first.";return;}
@@ -91,13 +91,18 @@ $("up").onclick=async()=>{
   $("msg").textContent=out.join("\n"); if(ok){ $("files").value=""; load(); }
 };
 $("t3").onclick=async e=>{
-  const b=e.target.closest(".del"); if(!b) return; const {d,n}=b.dataset;
+  const b=e.target.closest(".del"); if(!b) return; const {k,d,n}=b.dataset;
   if(!confirm(`Delete ${n}'s EOD for ${d}?`)) return;
   const password=prompt("Enter the delete password:"); if(!password) return;
-  try{ const r=await fetch("/api/eod",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:d,name:n,password})});
+  try{
+    const r=await fetch("/api/eod",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({key:k,password})});
     if(r.status===401){ $("msg").textContent="Wrong password - nothing was deleted."; return; }
     if(r.status===503){ $("msg").textContent="Delete password is not set up in Netlify yet."; return; }
-    if(!r.ok) throw new Error(r.status); $("msg").textContent=`Deleted ${n} - ${d}.`; load();
+    if(!r.ok) throw new Error(r.status);
+    const {deleted}=await r.json();
+    if(!deleted){ $("msg").textContent="The server could not remove this file."; return; }
+    records=records.filter(x=>x._key!==k); rows=flatten(records); render();
+    $("msg").textContent=`Deleted ${n} - ${d}.`;
   }catch(err){ $("msg").textContent="Delete failed: "+err.message; }
 };
 ["q","mo","rec"].forEach(i=>$(i).oninput=render);
