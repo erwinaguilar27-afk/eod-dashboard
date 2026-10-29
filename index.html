@@ -16,7 +16,7 @@ th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);vertica
 th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;cursor:pointer;white-space:nowrap}
 td.n,th.n{text-align:right}.notes{max-width:340px;color:var(--mut)}
 .pill{padding:2px 8px;border-radius:10px;font-weight:600;color:#fff;white-space:nowrap}
-#msg{color:var(--mut);white-space:pre-line}
+.del{background:var(--lo)}#msg{color:var(--mut);white-space:pre-line}
 </style></head><body>
 <h1>Recruiter EOD Dashboard</h1>
 <div class="sub">Upload daily EOD .json files — every file is saved and added to the tables below.</div>
@@ -25,18 +25,18 @@ td.n,th.n{text-align:right}.notes{max-width:340px;color:var(--mut)}
 <input type="file" id="files" accept=".json" multiple>
 <button id="up">Upload &amp; save</button><span id="msg"></span></div></div>
 
+<div class="card"><h2>Summary per month</h2><div class="wrap"><table id="t2"></table></div></div>
 <div class="card"><h2>Complete list</h2><div class="bar">
 <input id="q" placeholder="Search recruiter, req #, title…">
 <select id="mo"></select><select id="rec"></select></div>
 <div class="wrap"><table id="t1"></table></div></div>
-
-<div class="card"><h2>Summary per month</h2><div class="wrap"><table id="t2"></table></div></div>
+<div class="card"><h2>Uploaded files</h2><div class="wrap"><table id="t3"></table></div></div>
 
 <script>
 // Column mapping — change here if a metric should come from a different EOD field.
 const SOURCED = v => v.sourced, GOAL = v => v.srcGoal, BANKED = v => v.ioActual;
 
-let rows = [], sort = {k:"date", d:-1};
+let rows = [], records = [], sort = {k:"date", d:-1};
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const pct = (a,b) => b ? Math.round(a/b*100) : 0;
@@ -50,7 +50,7 @@ function flatten(data){
   })));
 }
 async function load(){
-  try{ rows = flatten(await (await fetch("/api/eod")).json()); }catch(e){ $("msg").textContent="Could not load data."; }
+  try{ records = await (await fetch("/api/eod")).json(); rows = flatten(records); }catch(e){ $("msg").textContent="Could not load data."; }
   const months=[...new Set(rows.map(r=>r.month))].sort().reverse(), recs=[...new Set(rows.map(r=>r.recruiter))].sort();
   const mo=$("mo").value, rc=$("rec").value;
   $("mo").innerHTML='<option value="">All months</option>'+months.map(m=>`<option value="${m}">${monthName(m)}</option>`).join("");
@@ -71,6 +71,9 @@ function render(){
   const s=Object.values(g).sort((a,b)=>b.month.localeCompare(a.month)||a.recruiter.localeCompare(b.recruiter));
   $("t2").innerHTML="<thead><tr><th>Month</th><th>Recruiter</th><th class='n'>Days Reported</th><th class='n'>Sourced</th><th class='n'>Goal</th><th class='n'>Banked</th><th class='n'>Completion</th></tr></thead><tbody>"+
     (s.map(r=>`<tr><td>${monthName(r.month)}</td><td>${esc(r.recruiter)}</td><td class="n">${r.days.size}</td><td class="n">${r.sourced}</td><td class="n">${r.goal}</td><td class="n">${r.banked}</td><td class="n">${pill(pct(r.sourced,r.goal))}</td></tr>`).join("")||'<tr><td colspan="7">No data yet.</td></tr>')+"</tbody>";
+  const rs=[...records].sort((a,b)=>b.date.localeCompare(a.date)||a.name.localeCompare(b.name));
+  $("t3").innerHTML="<thead><tr><th>Date</th><th>Recruiter</th><th class='n'>Reqs</th><th></th></tr></thead><tbody>"+
+    (rs.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.name)}</td><td class="n">${r.reqs.length}</td><td class="n"><button class="del" data-d="${esc(r.date)}" data-n="${esc(r.name)}">Delete</button></td></tr>`).join("")||'<tr><td colspan="4">No files yet.</td></tr>')+"</tbody>";
 }
 $("up").onclick=async()=>{
   const fs=[...$("files").files]; if(!fs.length){$("msg").textContent="Choose one or more .json files first.";return;}
@@ -86,6 +89,13 @@ $("up").onclick=async()=>{
     }catch(e){ out.push(`${f.name}: ${e.message}`); }
   }
   $("msg").textContent=out.join("\n"); if(ok){ $("files").value=""; load(); }
+};
+$("t3").onclick=async e=>{
+  const b=e.target.closest(".del"); if(!b) return; const {d,n}=b.dataset;
+  if(!confirm(`Delete ${n}'s EOD for ${d}?`)) return;
+  try{ const r=await fetch("/api/eod",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:d,name:n})});
+    if(!r.ok) throw new Error(r.status); $("msg").textContent=`Deleted ${n} - ${d}.`; load();
+  }catch(err){ $("msg").textContent="Delete failed: "+err.message; }
 };
 ["q","mo","rec"].forEach(i=>$(i).oninput=render);
 load();
