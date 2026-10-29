@@ -93,7 +93,10 @@ $("up").onclick=async()=>{
 $("t3").onclick=async e=>{
   const b=e.target.closest(".del"); if(!b) return; const {d,n}=b.dataset;
   if(!confirm(`Delete ${n}'s EOD for ${d}?`)) return;
-  try{ const r=await fetch("/api/eod",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:d,name:n})});
+  const password=prompt("Enter the delete password:"); if(!password) return;
+  try{ const r=await fetch("/api/eod",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:d,name:n,password})});
+    if(r.status===401){ $("msg").textContent="Wrong password - nothing was deleted."; return; }
+    if(r.status===503){ $("msg").textContent="Delete password is not set up in Netlify yet."; return; }
     if(!r.ok) throw new Error(r.status); $("msg").textContent=`Deleted ${n} - ${d}.`; load();
   }catch(err){ $("msg").textContent="Delete failed: "+err.message; }
 };
