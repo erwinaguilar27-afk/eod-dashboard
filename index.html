@@ -43,9 +43,15 @@ const pct = (a,b) => b ? Math.round(a/b*100) : 0;
 const pill = p => `<span class="pill" style="background:var(${p>=100?"--ok":p>=75?"--mid":"--lo"})">${p}%</span>`;
 const monthName = m => new Date(m+"-01T00:00").toLocaleString("en",{month:"long",year:"numeric"});
 
+// Nicknames: lowercase first name on the left is treated as the name on the right.
+const ALIASES = { lou: "louise" };
+const fk = n => { const f = String(n).trim().split(/\s+/)[0].toLowerCase(); return ALIASES[f] || f; };
 function flatten(data){
+  // same first name = same recruiter; show the longest (complete) name seen for that first name
+  const full={};
+  data.forEach(r=>{const n=String(r.name).trim().replace(/\s+/g," "), k=fk(n); if(!full[k]||n.length>full[k].length) full[k]=n;});
   return data.flatMap(r => r.reqs.map(q => ({
-    date:r.date, month:r.date.slice(0,7), recruiter:r.name, req:q.num, title:q.title,
+    date:r.date, month:r.date.slice(0,7), recruiter:full[fk(r.name)], req:q.num, title:q.title,
     sourced:+SOURCED(q.v)||0, goal:+GOAL(q.v)||0, banked:+BANKED(q.v)||0, notes:r.notes||""
   })));
 }
