@@ -26,7 +26,7 @@ details[open]>summary::before{content:"\25BE"}details[open]>summary{margin-botto
 .msp{display:none;position:absolute;top:100%;left:0;margin-top:4px;min-width:210px;max-height:280px;overflow:auto;background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:6px;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.2)}
 .ms.open .msp{display:block}.msp label{display:flex;gap:8px;padding:4px 6px;cursor:pointer;white-space:nowrap}
 .msp [data-clear]{display:block;color:var(--ac);cursor:pointer;padding:4px 6px}
-#msg{color:var(--mut);white-space:pre-line}
+#msg{color:var(--mut)}
 </style></head><body>
 <h1>Recruiter EOD Dashboard</h1>
 <div class="sub">Upload daily EOD .json files — every file is saved and added to the tables below.</div>
@@ -179,10 +179,14 @@ $("up").onclick = async () => {
       const r = await fetch("/api/eod",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
       if (!r.ok){ out.push(`${f.name}: server error ${r.status}` + (r.status===404 ? " (saving function not deployed)" : "")); continue; }
       const {saved} = await r.json();
-      if (saved){ ok++; out.push(`${f.name}: saved`); } else out.push(`${f.name}: skipped - needs date, name and reqs fields`);
+      if (saved){ ok++; out.push(`${f.name}: saved`); } else { const first = Array.isArray(data) ? data[0] : data; const keys = first && typeof first === "object" ? Object.keys(first).join(", ") : typeof first;
+        out.push(`${f.name}: skipped - needs date, name and reqs fields (found: ${keys || "nothing"})`); }
     }catch(e){ out.push(`${f.name}: ${e.message}`); }
   }
-  $("msg").textContent = out.join("\n"); if (ok){ $("files").value = ""; load(); }
+  const n = fs.length, bad = n - ok, w = `file${n===1?"":"s"}`;
+  $("msg").textContent = bad ? `${ok} of ${n} ${w} saved, ${bad} skipped (hover for details)` : `${ok} of ${n} ${w} saved`;
+  $("msg").title = out.filter(l => !l.endsWith(": saved")).join("\n");
+  if (ok){ $("files").value = ""; load(); }
 };
 $("t3").onclick = async e => {
   const b = e.target.closest(".del"); if (!b) return; const {k,d,n} = b.dataset;
