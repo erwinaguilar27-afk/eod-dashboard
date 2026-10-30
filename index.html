@@ -30,7 +30,7 @@ details[open]>summary::before{content:"\25BE  "}details[open]>summary{margin-bot
 <input type="file" id="files" accept=".json" multiple>
 <button id="up">Upload &amp; save</button><span id="msg"></span></div></div>
 
-<details class="card" open><summary>Summary per month</summary><div class="wrap"><table id="t2"></table></div></details>
+<details class="card" open><summary>Summary per month</summary><div class="bar"><select id="smo"></select><select id="srec"></select></div><div class="wrap"><table id="t2"></table></div></details>
 <details class="card" open><summary>Complete list</summary><div class="bar">
 <input id="q" placeholder="Search recruiter, req #, title…">
 <select id="mo"></select><select id="rec"></select></div>
@@ -66,7 +66,10 @@ async function load(){
   const mo=$("mo").value, rc=$("rec").value;
   $("mo").innerHTML='<option value="">All months</option>'+months.map(m=>`<option value="${m}">${monthName(m)}</option>`).join("");
   $("rec").innerHTML='<option value="">All recruiters</option>'+recs.map(r=>`<option>${esc(r)}</option>`).join("");
-  $("mo").value=mo; $("rec").value=rc; render();
+  $("mo").value=mo; $("rec").value=rc;
+  const smo=$("smo").value, srec=$("srec").value;
+  $("smo").innerHTML=$("mo").innerHTML; $("srec").innerHTML=$("rec").innerHTML;
+  $("smo").value=smo; $("srec").value=srec; render();
 }
 function render(){
   const q=$("q").value.toLowerCase(), mo=$("mo").value, rc=$("rec").value;
@@ -79,7 +82,8 @@ function render(){
   const g={};
   rows.forEach(r=>{const k=r.month+"|"+r.recruiter;(g[k]??={month:r.month,recruiter:r.recruiter,sourced:0,goal:0,banked:0,days:new Set()});
     g[k].sourced+=r.sourced;g[k].goal+=r.goal;g[k].banked+=r.banked;g[k].days.add(r.date);});
-  const s=Object.values(g).sort((a,b)=>b.month.localeCompare(a.month)||a.recruiter.localeCompare(b.recruiter));
+  const sm=$("smo").value, sr=$("srec").value;
+  const s=Object.values(g).filter(r=>(!sm||r.month===sm)&&(!sr||r.recruiter===sr)).sort((a,b)=>b.month.localeCompare(a.month)||a.recruiter.localeCompare(b.recruiter));
   $("t2").innerHTML="<thead><tr><th>Month</th><th>Recruiter</th><th class='n'>Days Reported</th><th class='n'>Sourced</th><th class='n'>Goal</th><th class='n'>Banked</th><th class='n'>Completion</th></tr></thead><tbody>"+
     (s.map(r=>`<tr><td>${monthName(r.month)}</td><td>${esc(r.recruiter)}</td><td class="n">${r.days.size}</td><td class="n">${r.sourced}</td><td class="n">${r.goal}</td><td class="n">${r.banked}</td><td class="n">${pill(pct(r.sourced,r.goal))}</td></tr>`).join("")||'<tr><td colspan="7">No data yet.</td></tr>')+"</tbody>";
   const rs=[...records].sort((a,b)=>b.date.localeCompare(a.date)||a.name.localeCompare(b.name));
@@ -120,6 +124,6 @@ $("tog").onclick=()=>{
   const ds=[...document.querySelectorAll("details.card")], open=ds.some(d=>d.open);
   ds.forEach(d=>d.open=!open); $("tog").textContent=open?"Expand all":"Collapse all";
 };
-["q","mo","rec"].forEach(i=>$(i).oninput=render);
+["q","mo","rec","smo","srec"].forEach(i=>$(i).oninput=render);
 load();
 </script></body></html>
