@@ -16,21 +16,26 @@ th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);vertica
 th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;cursor:pointer;white-space:nowrap}
 td.n,th.n{text-align:right}.notes{max-width:340px;color:var(--mut)}
 .pill{padding:2px 8px;border-radius:10px;font-weight:600;color:#fff;white-space:nowrap}
-.del{background:var(--lo)}#msg{color:var(--mut);white-space:pre-line}
+.del{background:var(--lo)}summary{cursor:pointer;font-size:15px;font-weight:600;list-style:none;user-select:none}
+summary::-webkit-details-marker{display:none}summary::before{content:"\25B8  "}
+details[open]>summary::before{content:"\25BE  "}details[open]>summary{margin-bottom:10px}
+#tog{margin-bottom:12px;background:var(--card);color:var(--tx);border:1px solid var(--bd)}
+#msg{color:var(--mut);white-space:pre-line}
 </style></head><body>
 <h1>Recruiter EOD Dashboard</h1>
 <div class="sub">Upload daily EOD .json files — every file is saved and added to the tables below.</div>
 
+<button id="tog" type="button">Collapse all</button>
 <div class="card"><div class="bar">
 <input type="file" id="files" accept=".json" multiple>
 <button id="up">Upload &amp; save</button><span id="msg"></span></div></div>
 
-<div class="card"><h2>Summary per month</h2><div class="wrap"><table id="t2"></table></div></div>
-<div class="card"><h2>Complete list</h2><div class="bar">
+<details class="card" open><summary>Summary per month</summary><div class="wrap"><table id="t2"></table></div></details>
+<details class="card" open><summary>Complete list</summary><div class="bar">
 <input id="q" placeholder="Search recruiter, req #, title…">
 <select id="mo"></select><select id="rec"></select></div>
-<div class="wrap"><table id="t1"></table></div></div>
-<div class="card"><h2>Uploaded files</h2><div class="wrap"><table id="t3"></table></div></div>
+<div class="wrap"><table id="t1"></table></div></details>
+<details class="card"><summary>Uploaded files</summary><div class="wrap"><table id="t3"></table></div></details>
 
 <script>
 // Column mapping — change here if a metric should come from a different EOD field.
@@ -110,6 +115,10 @@ $("t3").onclick=async e=>{
     records=records.filter(x=>x._key!==k); rows=flatten(records); render();
     $("msg").textContent=`Deleted ${n} - ${d}.`;
   }catch(err){ $("msg").textContent="Delete failed: "+err.message; }
+};
+$("tog").onclick=()=>{
+  const ds=[...document.querySelectorAll("details.card")], open=ds.some(d=>d.open);
+  ds.forEach(d=>d.open=!open); $("tog").textContent=open?"Expand all":"Collapse all";
 };
 ["q","mo","rec"].forEach(i=>$(i).oninput=render);
 load();
