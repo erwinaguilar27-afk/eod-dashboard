@@ -63,7 +63,7 @@ const pct = (a,b) => b ? Math.round(a/b*100) : 0;
 const pill = p => `<span class="pill" style="background:var(${p>=100?"--ok":p>=75?"--mid":"--lo"})">${p}%</span>`;
 const monthName = m => new Date(m+"-01T00:00").toLocaleString("en",{month:"long",year:"numeric"});
 const fk = n => { const f = String(n).trim().split(/\s+/)[0].toLowerCase(); return ALIASES[f] || f; };
-const wk = d => { const t = new Date(d+"T00:00:00Z"); if (isNaN(t)) return ""; t.setUTCDate(t.getUTCDate() - (t.getUTCDay()+6)%7); return t.toISOString().slice(0,10); };
+const wk = d => { const t = new Date(d+"T00:00:00Z"); if (isNaN(t)) return ""; t.setUTCDate(t.getUTCDate() - t.getUTCDay()); return t.toISOString().slice(0,10); };
 const wkLabel = w => { const a = new Date(w+"T00:00:00Z"), b = new Date(a); b.setUTCDate(b.getUTCDate()+6);
   const f = x => x.toLocaleString("en",{month:"short",day:"numeric",timeZone:"UTC"}); return `${f(a)} – ${f(b)}, ${b.getUTCFullYear()}`; };
 
