@@ -141,10 +141,12 @@ function render(){
   const pg = {};
   rows.filter(r => r.req !== "" && r.week && has("pwk",r.week) && has("prec",r.recruiter) && has("preq",String(r.req))).forEach(r => {
     const k = [r.week, r.recruiter, r.req].join("|");
-    (pg[k] ??= {week:r.week, recruiter:r.recruiter, req:r.req, title:r.title, sourced:0, goal:0}); pg[k].sourced += r.sourced; pg[k].goal += r.goal; });
+    (pg[k] ??= {week:r.week, recruiter:r.recruiter, req:r.req, sf:r.sf, title:r.title, banked:0, sourced:0, goal:0, notes:[]});
+    pg[k].banked += r.banked; pg[k].sourced += r.sourced; pg[k].goal += r.goal;
+    const n = r.notes ? `${r.date.slice(5)}: ${r.notes}` : ""; if (n && !pg[k].notes.includes(n)) pg[k].notes.push(n); });
   v3 = Object.values(pg).sort((a,b) => b.week.localeCompare(a.week) || a.recruiter.localeCompare(b.recruiter) || String(a.req).localeCompare(String(b.req)));
-  $("t4").innerHTML = "<thead><tr><th>Week</th><th>Recruiter</th><th>Req #</th><th>Job Title</th><th class='n'>Weekly Goal</th><th class='n'>Weekly Sourced</th><th class='n'>Completion</th></tr></thead><tbody>" +
-    (v3.map(r => `<tr><td>${esc(wkLabel(r.week))}</td><td>${esc(r.recruiter)}</td><td>${esc(r.req)}</td><td>${esc(r.title)}</td><td class="n">${r.goal}</td><td class="n">${r.sourced}</td><td class="n">${pill(pct(r.sourced,r.goal))}</td></tr>`).join("") || '<tr><td colspan="7">No data.</td></tr>') + "</tbody>";
+  $("t4").innerHTML = "<thead><tr><th>Recruiter</th><th>Week</th><th>Req #</th><th>SF Job #</th><th>Job Title</th><th class='n'>Banked</th><th class='n'>Sourced</th><th class='n'>Goal</th><th class='n'>Completion</th><th>Notes</th></tr></thead><tbody>" +
+    (v3.map(r => `<tr><td>${esc(r.recruiter)}</td><td>${esc(wkLabel(r.week))}</td><td>${esc(r.req)}</td><td>${esc(r.sf)}</td><td>${esc(r.title)}</td><td class="n">${r.banked}</td><td class="n">${r.sourced}</td><td class="n">${r.goal}</td><td class="n">${pill(pct(r.sourced,r.goal))}</td><td class="notes">${esc(r.notes.join(" • "))}</td></tr>`).join("") || '<tr><td colspan="10">No data.</td></tr>') + "</tbody>";
 
   const rs = [...records].filter(r => has("fdt",r.date) && has("frc",r.name)).sort((a,b) => String(b.date).localeCompare(String(a.date)) || String(a.name).localeCompare(String(b.name)));
   $("t3").innerHTML = "<thead><tr><th>Date</th><th>Recruiter</th><th class='n'>Reqs</th><th></th></tr></thead><tbody>" +
@@ -166,8 +168,8 @@ $("x2").onclick = e => { e.preventDefault(); e.stopPropagation();
     v2.map(r => [monthName(r.month),r.recruiter,r.sourced,r.goal,r.banked,pct(r.sourced,r.goal)+"%"])); };
 
 $("x3").onclick = e => { e.preventDefault(); e.stopPropagation();
-  csv("weekly-productivity", ["Week","Recruiter","Req #","Job Title","Weekly Goal","Weekly Sourced","Completion"],
-    v3.map(r => [wkLabel(r.week),r.recruiter,r.req,r.title,r.goal,r.sourced,pct(r.sourced,r.goal)+"%"])); };
+  csv("weekly-productivity", ["Recruiter","Week","Req #","SF Job #","Job Title","Banked","Sourced","Goal","Completion","Notes"],
+    v3.map(r => [r.recruiter,wkLabel(r.week),r.req,r.sf,r.title,r.banked,r.sourced,r.goal,pct(r.sourced,r.goal)+"%",r.notes.join(" • ")])); };
 
 // ---- upload / delete ----
 $("up").onclick = async () => {
