@@ -45,6 +45,10 @@ details[open]>summary::before{content:"\25BE"}details[open]>summary{margin-botto
 <div class="ms" id="mo"></div><div class="ms" id="wk"></div><div class="ms" id="rec"></div></div>
 <div class="wrap"><table id="t1"></table></div></details>
 
+<details class="card" open><summary><span>Weekly Productivity per Requisition</span><button class="exp" id="x3" type="button">Export CSV</button></summary>
+<div class="bar"><div class="ms" id="pwk"></div><div class="ms" id="prec"></div><div class="ms" id="preq"></div></div>
+<div class="wrap"><table id="t4"></table></div></details>
+
 <details class="card"><summary><span>Uploaded files</span></summary>
 <div class="bar"><div class="ms" id="fdt"></div><div class="ms" id="frc"></div></div>
 <div class="wrap"><table id="t3"></table></div></details>
@@ -55,7 +59,7 @@ const SOURCED = v => v.sourced, GOAL = v => v.srcGoal, BANKED = v => v.ioActual;
 // Nicknames: lowercase first name on the left is treated as the name on the right.
 const ALIASES = { lou: "louise" };
 
-let rows = [], records = [], v1 = [], v2 = [], sort = {k:"date", d:-1};
+let rows = [], records = [], v1 = [], v2 = [], v3 = [], sort = {k:"date", d:-1};
 const MS = {};
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -108,6 +112,9 @@ async function load(){
   const rc = uniq(rows.map(r=>r.recruiter)).sort().map(r => [r, r]);
   msSet("mo", mo); msSet("smo", mo); msSet("rec", rc); msSet("srec", rc);
   msSet("wk", uniq(rows.map(r=>r.week)).sort().reverse().map(w => [w, wkLabel(w)]));
+  msSet("pwk", uniq(rows.map(r=>r.week)).sort().reverse().map(w => [w, wkLabel(w)])); msSet("prec", rc);
+  const rq = new Map(); rows.forEach(r => { if (r.req !== "" && !rq.has(String(r.req))) rq.set(String(r.req), r.title); });
+  msSet("preq", [...rq].sort((a,b) => a[0].localeCompare(b[0])).map(([k,t]) => [k, `${k} – ${t}`]));
   msSet("fdt", uniq(records.map(r=>r.date)).sort().reverse().map(d => [d, d]));
   msSet("frc", uniq(records.map(r=>r.name)).sort().map(n => [n, n]));
   render();
@@ -131,6 +138,14 @@ function render(){
   $("t2").innerHTML = "<thead><tr><th>Month</th><th>Recruiter</th><th class='n'>Sourced</th><th class='n'>Goal</th><th class='n'>Banked</th><th class='n'>Completion</th></tr></thead><tbody>" +
     (v2.map(r => `<tr><td>${monthName(r.month)}</td><td>${esc(r.recruiter)}</td><td class="n">${r.sourced}</td><td class="n">${r.goal}</td><td class="n">${r.banked}</td><td class="n">${pill(pct(r.sourced,r.goal))}</td></tr>`).join("") || '<tr><td colspan="6">No data.</td></tr>') + "</tbody>";
 
+  const pg = {};
+  rows.filter(r => r.req !== "" && r.week && has("pwk",r.week) && has("prec",r.recruiter) && has("preq",String(r.req))).forEach(r => {
+    const k = [r.week, r.recruiter, r.req].join("|");
+    (pg[k] ??= {week:r.week, recruiter:r.recruiter, req:r.req, title:r.title, sourced:0, goal:0}); pg[k].sourced += r.sourced; pg[k].goal += r.goal; });
+  v3 = Object.values(pg).sort((a,b) => b.week.localeCompare(a.week) || a.recruiter.localeCompare(b.recruiter) || String(a.req).localeCompare(String(b.req)));
+  $("t4").innerHTML = "<thead><tr><th>Week</th><th>Recruiter</th><th>Req #</th><th>Job Title</th><th class='n'>Weekly Goal</th><th class='n'>Weekly Sourced</th><th class='n'>Completion</th></tr></thead><tbody>" +
+    (v3.map(r => `<tr><td>${esc(wkLabel(r.week))}</td><td>${esc(r.recruiter)}</td><td>${esc(r.req)}</td><td>${esc(r.title)}</td><td class="n">${r.goal}</td><td class="n">${r.sourced}</td><td class="n">${pill(pct(r.sourced,r.goal))}</td></tr>`).join("") || '<tr><td colspan="7">No data.</td></tr>') + "</tbody>";
+
   const rs = [...records].filter(r => has("fdt",r.date) && has("frc",r.name)).sort((a,b) => String(b.date).localeCompare(String(a.date)) || String(a.name).localeCompare(String(b.name)));
   $("t3").innerHTML = "<thead><tr><th>Date</th><th>Recruiter</th><th class='n'>Reqs</th><th></th></tr></thead><tbody>" +
     (rs.map(r => `<tr><td>${esc(r.date)}</td><td>${esc(r.name)}</td><td class="n">${(r.reqs||[]).length}</td><td class="n"><button class="del" data-k="${esc(r._key)}" data-d="${esc(r.date)}" data-n="${esc(r.name)}">Delete</button></td></tr>`).join("") || '<tr><td colspan="4">No files.</td></tr>') + "</tbody>";
@@ -149,6 +164,10 @@ $("x1").onclick = e => { e.preventDefault(); e.stopPropagation();
 $("x2").onclick = e => { e.preventDefault(); e.stopPropagation();
   csv("summary-per-month", ["Month","Recruiter","Sourced","Goal","Banked","Completion"],
     v2.map(r => [monthName(r.month),r.recruiter,r.sourced,r.goal,r.banked,pct(r.sourced,r.goal)+"%"])); };
+
+$("x3").onclick = e => { e.preventDefault(); e.stopPropagation();
+  csv("weekly-productivity", ["Week","Recruiter","Req #","Job Title","Weekly Goal","Weekly Sourced","Completion"],
+    v3.map(r => [wkLabel(r.week),r.recruiter,r.req,r.title,r.goal,r.sourced,pct(r.sourced,r.goal)+"%"])); };
 
 // ---- upload / delete ----
 $("up").onclick = async () => {
@@ -185,7 +204,7 @@ $("tog").onclick = () => {
   ds.forEach(d => d.open = !open); $("tog").textContent = open ? "Expand all" : "Collapse all";
 };
 
-[["smo","All months"],["srec","All recruiters"],["mo","All months"],["wk","All weeks"],["rec","All recruiters"],["fdt","All dates"],["frc","All recruiters"]].forEach(([i,l]) => msInit(i,l));
+[["smo","All months"],["srec","All recruiters"],["mo","All months"],["wk","All weeks"],["rec","All recruiters"],["pwk","All weeks"],["prec","All recruiters"],["preq","All requisitions"],["fdt","All dates"],["frc","All recruiters"]].forEach(([i,l]) => msInit(i,l));
 $("q").oninput = render;
 load();
 </script></body></html>
