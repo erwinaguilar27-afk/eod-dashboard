@@ -6,128 +6,186 @@
 :root{--bg:#f6f7f9;--card:#fff;--tx:#1b2430;--mut:#657080;--bd:#e2e6ec;--ac:#1f5fbf;--ok:#1a7f4b;--mid:#b7791f;--lo:#c0392b}
 @media(prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1a2029;--tx:#e8ecf1;--mut:#97a1af;--bd:#2c3542;--ac:#6ea8ff;--ok:#4cc38a;--mid:#e0b04a;--lo:#ef7b6e}}
 *{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif;background:var(--bg);color:var(--tx);padding:20px}
-h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:0 0 10px}.sub{color:var(--mut);margin-bottom:16px}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:16px;margin-bottom:16px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin-bottom:16px}
+.card{display:block;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:16px;margin-bottom:16px}
 .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
 input,select,button{font:inherit;padding:7px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--card);color:var(--tx)}
 button{background:var(--ac);color:#fff;border:0;cursor:pointer}
-.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:760px}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:820px}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);vertical-align:top}
 th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;cursor:pointer;white-space:nowrap}
 td.n,th.n{text-align:right}.notes{max-width:340px;color:var(--mut)}
 .pill{padding:2px 8px;border-radius:10px;font-weight:600;color:#fff;white-space:nowrap}
-.del{background:var(--lo)}summary{cursor:pointer;font-size:15px;font-weight:600;list-style:none;user-select:none}
-summary::-webkit-details-marker{display:none}summary::before{content:"\25B8  "}
-details[open]>summary::before{content:"\25BE  "}details[open]>summary{margin-bottom:10px}
-#tog{margin-bottom:12px;background:var(--card);color:var(--tx);border:1px solid var(--bd)}
+.del{background:var(--lo)}
+summary{cursor:pointer;font-size:15px;font-weight:600;list-style:none;user-select:none;display:flex;align-items:center;gap:6px}
+summary::-webkit-details-marker{display:none}summary::before{content:"\25B8"}
+details[open]>summary::before{content:"\25BE"}details[open]>summary{margin-bottom:10px}
+.exp,#tog{background:var(--card);color:var(--tx);border:1px solid var(--bd)}
+.exp{margin-left:auto;font-size:12px;padding:5px 10px}#tog{margin-bottom:12px}
+.ms{position:relative}.msb{background:var(--card);color:var(--tx);border:1px solid var(--bd);min-width:150px;text-align:left}
+.msp{display:none;position:absolute;top:100%;left:0;margin-top:4px;min-width:210px;max-height:280px;overflow:auto;background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:6px;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+.ms.open .msp{display:block}.msp label{display:flex;gap:8px;padding:4px 6px;cursor:pointer;white-space:nowrap}
+.msp [data-clear]{display:block;color:var(--ac);cursor:pointer;padding:4px 6px}
 #msg{color:var(--mut);white-space:pre-line}
 </style></head><body>
 <h1>Recruiter EOD Dashboard</h1>
 <div class="sub">Upload daily EOD .json files — every file is saved and added to the tables below.</div>
-
 <button id="tog" type="button">Collapse all</button>
+
 <div class="card"><div class="bar">
 <input type="file" id="files" accept=".json" multiple>
 <button id="up">Upload &amp; save</button><span id="msg"></span></div></div>
 
-<details class="card" open><summary>Summary per month</summary><div class="bar"><select id="smo"></select><select id="srec"></select></div><div class="wrap"><table id="t2"></table></div></details>
-<details class="card" open><summary>Complete list</summary><div class="bar">
-<input id="q" placeholder="Search recruiter, req #, title…">
-<select id="mo"></select><select id="rec"></select></div>
+<details class="card" open><summary><span>Summary per month</span><button class="exp" id="x2" type="button">Export CSV</button></summary>
+<div class="bar"><div class="ms" id="smo"></div><div class="ms" id="srec"></div></div>
+<div class="wrap"><table id="t2"></table></div></details>
+
+<details class="card" open><summary><span>Complete list</span><button class="exp" id="x1" type="button">Export CSV</button></summary>
+<div class="bar"><input id="q" placeholder="Search recruiter, req #, title…">
+<div class="ms" id="mo"></div><div class="ms" id="wk"></div><div class="ms" id="rec"></div></div>
 <div class="wrap"><table id="t1"></table></div></details>
-<details class="card"><summary>Uploaded files</summary><div class="bar"><select id="fdt"></select><select id="frc"></select></div><div class="wrap"><table id="t3"></table></div></details>
+
+<details class="card"><summary><span>Uploaded files</span></summary>
+<div class="bar"><div class="ms" id="fdt"></div><div class="ms" id="frc"></div></div>
+<div class="wrap"><table id="t3"></table></div></details>
 
 <script>
 // Column mapping — change here if a metric should come from a different EOD field.
 const SOURCED = v => v.sourced, GOAL = v => v.srcGoal, BANKED = v => v.ioActual;
+// Nicknames: lowercase first name on the left is treated as the name on the right.
+const ALIASES = { lou: "louise" };
 
-let rows = [], records = [], sort = {k:"date", d:-1};
+let rows = [], records = [], v1 = [], v2 = [], sort = {k:"date", d:-1};
+const MS = {};
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const pct = (a,b) => b ? Math.round(a/b*100) : 0;
 const pill = p => `<span class="pill" style="background:var(${p>=100?"--ok":p>=75?"--mid":"--lo"})">${p}%</span>`;
 const monthName = m => new Date(m+"-01T00:00").toLocaleString("en",{month:"long",year:"numeric"});
-
-// Nicknames: lowercase first name on the left is treated as the name on the right.
-const ALIASES = { lou: "louise" };
 const fk = n => { const f = String(n).trim().split(/\s+/)[0].toLowerCase(); return ALIASES[f] || f; };
+const wk = d => { const t = new Date(d+"T00:00:00Z"); if (isNaN(t)) return ""; t.setUTCDate(t.getUTCDate() - (t.getUTCDay()+6)%7); return t.toISOString().slice(0,10); };
+const wkLabel = w => { const a = new Date(w+"T00:00:00Z"), b = new Date(a); b.setUTCDate(b.getUTCDate()+6);
+  const f = x => x.toLocaleString("en",{month:"short",day:"numeric",timeZone:"UTC"}); return `${f(a)} – ${f(b)}, ${b.getUTCFullYear()}`; };
+
+// ---- multi-select dropdowns ----
+function msInit(id, all){
+  const el = $(id); MS[id] = {sel:new Set(), opts:[], all};
+  el.innerHTML = '<button type="button" class="msb"></button><div class="msp"></div>';
+  el.onclick = e => {
+    if (e.target.closest(".msb")){ document.querySelectorAll(".ms.open").forEach(x => x!==el && x.classList.remove("open")); el.classList.toggle("open"); }
+    else if (e.target.dataset.clear !== undefined){ MS[id].sel.clear(); msDraw(id); render(); }
+  };
+  el.onchange = e => { const c = e.target; c.checked ? MS[id].sel.add(c.value) : MS[id].sel.delete(c.value); msDraw(id); render(); };
+  msDraw(id);
+}
+function msSet(id, opts){ const m = MS[id]; m.opts = opts; m.sel = new Set([...m.sel].filter(v => opts.some(o => o[0]===v))); msDraw(id); }
+function msDraw(id){
+  const m = MS[id], el = $(id), n = m.sel.size;
+  el.querySelector(".msb").textContent = (n===0 ? m.all : n===1 ? m.opts.find(o => m.sel.has(o[0]))[1] : n+" selected") + " ▾";
+  el.querySelector(".msp").innerHTML = '<span data-clear>Clear selection</span>' +
+    m.opts.map(([v,l]) => `<label><input type="checkbox" value="${esc(v)}"${m.sel.has(v)?" checked":""}> ${esc(l)}</label>`).join("");
+}
+const has = (id, v) => !MS[id].sel.size || MS[id].sel.has(v);
+document.addEventListener("click", e => document.querySelectorAll(".ms.open").forEach(x => { if (!x.contains(e.target)) x.classList.remove("open"); }));
+
+// ---- data ----
 function flatten(data){
   // same first name = same recruiter; show the longest (complete) name seen for that first name
-  const full={};
-  data.forEach(r=>{const n=String(r.name).trim().replace(/\s+/g," "), k=fk(n); if(!full[k]||n.length>full[k].length) full[k]=n;});
-  return data.flatMap(r => r.reqs.map(q => ({
-    date:r.date, month:r.date.slice(0,7), recruiter:full[fk(r.name)], req:q.num, title:q.title,
-    sourced:+SOURCED(q.v)||0, goal:+GOAL(q.v)||0, banked:+BANKED(q.v)||0, notes:r.notes||""
-  })));
+  const full = {};
+  data.forEach(r => { const n = String(r.name).trim().replace(/\s+/g," "), k = fk(n); if (!full[k] || n.length > full[k].length) full[k] = n; });
+  return data.flatMap(r => {
+    const base = {date:String(r.date), month:String(r.date).slice(0,7), week:wk(String(r.date)), recruiter:full[fk(r.name)], notes:r.notes||""};
+    const reqs = Array.isArray(r.reqs) && r.reqs.length ? r.reqs : [{num:"", sf:"", title:"(no reqs in this file)", v:{}}];
+    return reqs.map(q => { const v = q.v || {};
+      return {...base, req:q.num ?? "", sf:q.sf ?? "", title:q.title || "", sourced:+SOURCED(v)||0, goal:+GOAL(v)||0, banked:+BANKED(v)||0}; });
+  });
 }
 async function load(){
-  try{ records = await (await fetch("/api/eod?t="+Date.now(),{cache:"no-store"})).json(); rows = flatten(records); }catch(e){ $("msg").textContent="Could not load data."; }
-  const months=[...new Set(rows.map(r=>r.month))].sort().reverse(), recs=[...new Set(rows.map(r=>r.recruiter))].sort();
-  const mo=$("mo").value, rc=$("rec").value;
-  $("mo").innerHTML='<option value="">All months</option>'+months.map(m=>`<option value="${m}">${monthName(m)}</option>`).join("");
-  $("rec").innerHTML='<option value="">All recruiters</option>'+recs.map(r=>`<option>${esc(r)}</option>`).join("");
-  $("mo").value=mo; $("rec").value=rc;
-  const smo=$("smo").value, srec=$("srec").value;
-  $("smo").innerHTML=$("mo").innerHTML; $("srec").innerHTML=$("rec").innerHTML;
-  $("smo").value=smo; $("srec").value=srec;
-  const fd=$("fdt").value, fr=$("frc").value;
-  $("fdt").innerHTML='<option value="">All dates</option>'+[...new Set(records.map(r=>r.date))].sort().reverse().map(d=>`<option>${esc(d)}</option>`).join("");
-  $("frc").innerHTML='<option value="">All recruiters</option>'+[...new Set(records.map(r=>r.name))].sort().map(n=>`<option>${esc(n)}</option>`).join("");
-  $("fdt").value=fd; $("frc").value=fr; render();
+  try{ records = await (await fetch("/api/eod?t="+Date.now(),{cache:"no-store"})).json(); rows = flatten(records); }
+  catch(e){ $("msg").textContent = "Could not load data."; }
+  const uniq = a => [...new Set(a)].filter(Boolean);
+  const mo = uniq(rows.map(r=>r.month)).sort().reverse().map(m => [m, monthName(m)]);
+  const rc = uniq(rows.map(r=>r.recruiter)).sort().map(r => [r, r]);
+  msSet("mo", mo); msSet("smo", mo); msSet("rec", rc); msSet("srec", rc);
+  msSet("wk", uniq(rows.map(r=>r.week)).sort().reverse().map(w => [w, wkLabel(w)]));
+  msSet("fdt", uniq(records.map(r=>r.date)).sort().reverse().map(d => [d, d]));
+  msSet("frc", uniq(records.map(r=>r.name)).sort().map(n => [n, n]));
+  render();
 }
+
+// ---- render ----
 function render(){
-  const q=$("q").value.toLowerCase(), mo=$("mo").value, rc=$("rec").value;
-  const f=rows.filter(r=>(!mo||r.month===mo)&&(!rc||r.recruiter===rc)&&(!q||[r.recruiter,r.req,r.title].join(" ").toLowerCase().includes(q)));
-  f.sort((a,b)=>(a[sort.k]>b[sort.k]?1:a[sort.k]<b[sort.k]?-1:0)*sort.d);
-  const h=[["date","Date"],["recruiter","Recruiter"],["req","Req #"],["title","Job Title"],["sourced","Sourced","n"],["goal","Goal","n"],["banked","Banked","n"],["comp","Completion","n"],["notes","Notes"]];
-  $("t1").innerHTML="<thead><tr>"+h.map(([k,l,c])=>`<th class="${c||""}" data-k="${k}">${l}</th>`).join("")+"</tr></thead><tbody>"+
-    (f.map(r=>`<tr><td>${r.date}</td><td>${esc(r.recruiter)}</td><td>${esc(r.req)}</td><td>${esc(r.title)}</td><td class="n">${r.sourced}</td><td class="n">${r.goal}</td><td class="n">${r.banked}</td><td class="n">${pill(pct(r.sourced,r.goal))}</td><td class="notes">${esc(r.notes)}</td></tr>`).join("")||'<tr><td colspan="9">No data yet — upload an EOD file.</td></tr>')+"</tbody>";
-  document.querySelectorAll("#t1 th").forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(k==="comp")return;sort={k,d:sort.k===k?-sort.d:1};render();});
-  const g={};
-  rows.forEach(r=>{const k=r.month+"|"+r.recruiter;(g[k]??={month:r.month,recruiter:r.recruiter,sourced:0,goal:0,banked:0,days:new Set()});
-    g[k].sourced+=r.sourced;g[k].goal+=r.goal;g[k].banked+=r.banked;g[k].days.add(r.date);});
-  const sm=$("smo").value, sr=$("srec").value;
-  const s=Object.values(g).filter(r=>(!sm||r.month===sm)&&(!sr||r.recruiter===sr)).sort((a,b)=>b.month.localeCompare(a.month)||a.recruiter.localeCompare(b.recruiter));
-  $("t2").innerHTML="<thead><tr><th>Month</th><th>Recruiter</th><th class='n'>Days Reported</th><th class='n'>Sourced</th><th class='n'>Goal</th><th class='n'>Banked</th><th class='n'>Completion</th></tr></thead><tbody>"+
-    (s.map(r=>`<tr><td>${monthName(r.month)}</td><td>${esc(r.recruiter)}</td><td class="n">${r.days.size}</td><td class="n">${r.sourced}</td><td class="n">${r.goal}</td><td class="n">${r.banked}</td><td class="n">${pill(pct(r.sourced,r.goal))}</td></tr>`).join("")||'<tr><td colspan="7">No data yet.</td></tr>')+"</tbody>";
-  const rs=[...records].filter(r=>(!$("fdt").value||r.date===$("fdt").value)&&(!$("frc").value||r.name===$("frc").value)).sort((a,b)=>b.date.localeCompare(a.date)||a.name.localeCompare(b.name));
-  $("t3").innerHTML="<thead><tr><th>Date</th><th>Recruiter</th><th class='n'>Reqs</th><th></th></tr></thead><tbody>"+
-    (rs.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.name)}</td><td class="n">${r.reqs.length}</td><td class="n"><button class="del" data-k="${esc(r._key)}" data-d="${esc(r.date)}" data-n="${esc(r.name)}">Delete</button></td></tr>`).join("")||'<tr><td colspan="4">No files yet.</td></tr>')+"</tbody>";
+  const q = $("q").value.toLowerCase();
+  const f = rows.filter(r => has("mo",r.month) && has("wk",r.week) && has("rec",r.recruiter) &&
+    (!q || [r.recruiter,r.req,r.sf,r.title].join(" ").toLowerCase().includes(q)));
+  f.sort((a,b) => (a[sort.k]>b[sort.k]?1:a[sort.k]<b[sort.k]?-1:0)*sort.d); v1 = f;
+  const h = [["recruiter","Recruiter"],["date","Date"],["req","Req #"],["sf","SF Job #"],["title","Job Title"],["banked","Banked","n"],["sourced","Sourced","n"],["goal","Goal","n"],["comp","Completion","n"],["notes","Notes"]];
+  $("t1").innerHTML = "<thead><tr>" + h.map(([k,l,c]) => `<th class="${c||""}" data-k="${k}">${l}</th>`).join("") + "</tr></thead><tbody>" +
+    (f.map(r => `<tr><td>${esc(r.recruiter)}</td><td>${esc(r.date)}</td><td>${esc(r.req)}</td><td>${esc(r.sf)}</td><td>${esc(r.title)}</td><td class="n">${r.banked}</td><td class="n">${r.sourced}</td><td class="n">${r.goal}</td><td class="n">${pill(pct(r.sourced,r.goal))}</td><td class="notes">${esc(r.notes)}</td></tr>`).join("") || '<tr><td colspan="10">No data.</td></tr>') + "</tbody>";
+  document.querySelectorAll("#t1 th").forEach(th => th.onclick = () => { const k = th.dataset.k; if (k==="comp") return; sort = {k, d: sort.k===k ? -sort.d : 1}; render(); });
+
+  const g = {};
+  rows.filter(r => has("smo",r.month) && has("srec",r.recruiter)).forEach(r => { const k = r.month+"|"+r.recruiter;
+    (g[k] ??= {month:r.month, recruiter:r.recruiter, sourced:0, goal:0, banked:0}); g[k].sourced += r.sourced; g[k].goal += r.goal; g[k].banked += r.banked; });
+  v2 = Object.values(g).sort((a,b) => b.month.localeCompare(a.month) || a.recruiter.localeCompare(b.recruiter));
+  $("t2").innerHTML = "<thead><tr><th>Month</th><th>Recruiter</th><th class='n'>Sourced</th><th class='n'>Goal</th><th class='n'>Banked</th><th class='n'>Completion</th></tr></thead><tbody>" +
+    (v2.map(r => `<tr><td>${monthName(r.month)}</td><td>${esc(r.recruiter)}</td><td class="n">${r.sourced}</td><td class="n">${r.goal}</td><td class="n">${r.banked}</td><td class="n">${pill(pct(r.sourced,r.goal))}</td></tr>`).join("") || '<tr><td colspan="6">No data.</td></tr>') + "</tbody>";
+
+  const rs = [...records].filter(r => has("fdt",r.date) && has("frc",r.name)).sort((a,b) => String(b.date).localeCompare(String(a.date)) || String(a.name).localeCompare(String(b.name)));
+  $("t3").innerHTML = "<thead><tr><th>Date</th><th>Recruiter</th><th class='n'>Reqs</th><th></th></tr></thead><tbody>" +
+    (rs.map(r => `<tr><td>${esc(r.date)}</td><td>${esc(r.name)}</td><td class="n">${(r.reqs||[]).length}</td><td class="n"><button class="del" data-k="${esc(r._key)}" data-d="${esc(r.date)}" data-n="${esc(r.name)}">Delete</button></td></tr>`).join("") || '<tr><td colspan="4">No files.</td></tr>') + "</tbody>";
 }
-$("up").onclick=async()=>{
-  const fs=[...$("files").files]; if(!fs.length){$("msg").textContent="Choose one or more .json files first.";return;}
-  const out=[]; let ok=0;
-  for(const f of fs){
+
+// ---- CSV export ----
+function csv(name, head, data){
+  const c = v => { let s = String(v ?? ""); if (/^[=+\-@]/.test(s) && isNaN(s)) s = "'" + s; return '"' + s.replace(/"/g,'""') + '"'; };
+  const text = [head, ...data].map(r => r.map(c).join(",")).join("\r\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\ufeff"+text], {type:"text/csv"}));
+  a.download = `${name}-${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(a); a.click(); a.remove();
+}
+$("x1").onclick = e => { e.preventDefault(); e.stopPropagation();
+  csv("complete-list", ["Recruiter","Date","Req #","SF Job #","Job Title","Banked","Sourced","Goal","Completion","Notes"],
+    v1.map(r => [r.recruiter,r.date,r.req,r.sf,r.title,r.banked,r.sourced,r.goal,pct(r.sourced,r.goal)+"%",r.notes])); };
+$("x2").onclick = e => { e.preventDefault(); e.stopPropagation();
+  csv("summary-per-month", ["Month","Recruiter","Sourced","Goal","Banked","Completion"],
+    v2.map(r => [monthName(r.month),r.recruiter,r.sourced,r.goal,r.banked,pct(r.sourced,r.goal)+"%"])); };
+
+// ---- upload / delete ----
+$("up").onclick = async () => {
+  const fs = [...$("files").files]; if (!fs.length){ $("msg").textContent = "Choose one or more .json files first."; return; }
+  const out = []; let ok = 0;
+  for (const f of fs){
     try{
-      let data; try{ data=JSON.parse((await f.text()).replace(/^\uFEFF/,"")); }
-      catch(e){ out.push(`${f.name}: not valid JSON`); continue; }
-      const r=await fetch("/api/eod",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
-      if(!r.ok){ out.push(`${f.name}: server error ${r.status}`+(r.status===404?" (saving function not deployed)":"")); continue; }
-      const {saved}=await r.json();
-      if(saved){ ok++; out.push(`${f.name}: saved`); } else out.push(`${f.name}: skipped - needs date, name and reqs fields`);
+      let data; try{ data = JSON.parse((await f.text()).replace(/^\uFEFF/,"")); } catch(e){ out.push(`${f.name}: not valid JSON`); continue; }
+      const r = await fetch("/api/eod",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+      if (!r.ok){ out.push(`${f.name}: server error ${r.status}` + (r.status===404 ? " (saving function not deployed)" : "")); continue; }
+      const {saved} = await r.json();
+      if (saved){ ok++; out.push(`${f.name}: saved`); } else out.push(`${f.name}: skipped - needs date, name and reqs fields`);
     }catch(e){ out.push(`${f.name}: ${e.message}`); }
   }
-  $("msg").textContent=out.join("\n"); if(ok){ $("files").value=""; load(); }
+  $("msg").textContent = out.join("\n"); if (ok){ $("files").value = ""; load(); }
 };
-$("t3").onclick=async e=>{
-  const b=e.target.closest(".del"); if(!b) return; const {k,d,n}=b.dataset;
-  if(!confirm(`Delete ${n}'s EOD for ${d}?`)) return;
-  const password=prompt("Enter the delete password:"); if(!password) return;
+$("t3").onclick = async e => {
+  const b = e.target.closest(".del"); if (!b) return; const {k,d,n} = b.dataset;
+  if (!confirm(`Delete ${n}'s EOD for ${d}?`)) return;
+  const password = prompt("Enter the delete password:"); if (!password) return;
   try{
-    const r=await fetch("/api/eod",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({key:k,password})});
-    if(r.status===401){ $("msg").textContent="Wrong password - nothing was deleted."; return; }
-    if(r.status===503){ $("msg").textContent="Delete password is not set up in Netlify yet."; return; }
-    if(!r.ok) throw new Error(r.status);
-    const {deleted}=await r.json();
-    if(!deleted){ $("msg").textContent="The server could not remove this file."; return; }
-    records=records.filter(x=>x._key!==k); rows=flatten(records); render();
-    $("msg").textContent=`Deleted ${n} - ${d}.`;
-  }catch(err){ $("msg").textContent="Delete failed: "+err.message; }
+    const r = await fetch("/api/eod",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({key:k,password})});
+    if (r.status===401){ $("msg").textContent = "Wrong password - nothing was deleted."; return; }
+    if (r.status===503){ $("msg").textContent = "Delete password is not set up in Netlify yet."; return; }
+    if (!r.ok) throw new Error(r.status);
+    const {deleted} = await r.json();
+    if (!deleted){ $("msg").textContent = "The server could not remove this file."; return; }
+    records = records.filter(x => x._key !== k); rows = flatten(records); render();
+    $("msg").textContent = `Deleted ${n} - ${d}.`;
+  }catch(err){ $("msg").textContent = "Delete failed: " + err.message; }
 };
-$("tog").onclick=()=>{
-  const ds=[...document.querySelectorAll("details.card")], open=ds.some(d=>d.open);
-  ds.forEach(d=>d.open=!open); $("tog").textContent=open?"Expand all":"Collapse all";
+$("tog").onclick = () => {
+  const ds = [...document.querySelectorAll("details.card")], open = ds.some(d => d.open);
+  ds.forEach(d => d.open = !open); $("tog").textContent = open ? "Expand all" : "Collapse all";
 };
-["q","mo","rec","smo","srec","fdt","frc"].forEach(i=>$(i).oninput=render);
+
+[["smo","All months"],["srec","All recruiters"],["mo","All months"],["wk","All weeks"],["rec","All recruiters"],["fdt","All dates"],["frc","All recruiters"]].forEach(([i,l]) => msInit(i,l));
+$("q").oninput = render;
 load();
 </script></body></html>
