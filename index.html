@@ -172,13 +172,15 @@ $("x3").onclick = e => { e.preventDefault(); e.stopPropagation();
     v3.map(r => [r.recruiter,wkLabel(r.week),r.req,r.sf,r.title,r.banked,r.sourced,r.goal,pct(r.sourced,r.goal)+"%",r.notes.join(" • ")])); };
 
 // ---- upload / delete ----
+// Accepts the single-day format and the "INNIO EOD export" format (an object with a "days" list); a file may hold several days.
+const extract = d => Array.isArray(d) ? d.flatMap(extract) : d && Array.isArray(d.days) ? d.days : d ? [d] : [];
 $("up").onclick = async () => {
   const fs = [...$("files").files]; if (!fs.length){ $("msg").textContent = "Choose one or more .json files first."; return; }
   const out = []; let ok = 0;
   for (const f of fs){
     try{
       let data; try{ data = JSON.parse((await f.text()).replace(/^\uFEFF/,"")); } catch(e){ out.push(`${f.name}: not valid JSON`); continue; }
-      const r = await fetch("/api/eod",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+      const r = await fetch("/api/eod",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(extract(data))});
       if (!r.ok){ out.push(`${f.name}: server error ${r.status}` + (r.status===404 ? " (saving function not deployed)" : "")); continue; }
       const {saved} = await r.json();
       if (saved){ ok++; out.push(`${f.name}: saved`); } else { const first = Array.isArray(data) ? data[0] : data; const keys = first && typeof first === "object" ? Object.keys(first).join(", ") : typeof first;
